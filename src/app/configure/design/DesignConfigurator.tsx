@@ -17,27 +17,50 @@ import {
 import { Label } from "@/components/ui/label";
 import {
   DropdownMenu,
-  DropdownMenuTrigger,
-} from "@radix-ui/react-dropdown-menu";
-import { Button } from "@/components/ui/button";
-import { ArrowRight, Check, ChevronsUpDown } from "lucide-react";
-import {
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Button } from "@/components/ui/button";
+import { ArrowRight, Check, ChevronsUpDown } from "lucide-react";
 import { BASE_PRICE } from "@/config/products";
+import { useUploadThing } from "@/lib/uploadthing";
+import { useToast } from "@/components/ui/use-toast";
+import { useMutation } from "@tanstack/react-query";
+import { saveConfig as _saveConfig, saveConfigArgs } from "./actions";
+import { useRouter } from "next/navigation";
 
 interface DesignConfiguratorProps {
   configId: string;
-  imgUrl: string;
-  imageDimentions: { width: number; height: number };
+  imageUrl: string;
+  imageDimensions: { width: number; height: number };
 }
 
 const DesignConfigurator = ({
   configId,
-  imgUrl,
-  imageDimentions,
+  imageUrl,
+  imageDimensions,
 }: DesignConfiguratorProps) => {
+  const { toast } = useToast();
+  const router = useRouter();
+
+  const { mutate: saveConfig, isPending } = useMutation({
+    mutationKey: ["save-config"],
+    mutationFn: async (args: saveConfigArgs) => {
+      await Promise.all([saveConfiguration(), _saveConfig(args)]);
+    },
+    onError: () => {
+      toast({
+        title: "Something went wrong",
+        description: "There was an error on our end. Please try again.",
+        variant: "destructive",
+      });
+    },
+    onSuccess: () => {
+      router.push(`/configure/preview?id=${configId}`);
+    },
+  });
+
   const [options, setOptions] = useState<{
     color: (typeof COLORS)[number];
     model: (typeof MODELS.options)[number];
@@ -51,8 +74,8 @@ const DesignConfigurator = ({
   });
 
   const [renderedDimension, setRenderedDimension] = useState({
-    width: imageDimentions.width / 4,
-    height: imageDimentions.height / 4,
+    width: imageDimensions.width / 4,
+    height: imageDimensions.height / 4,
   });
 
   const [renderedPosition, setRenderedPosition] = useState({
@@ -61,8 +84,9 @@ const DesignConfigurator = ({
   });
 
   const phoneCaseRef = useRef<HTMLDivElement>(null);
-
   const containerRef = useRef<HTMLDivElement>(null);
+
+  const { startUpload } = useUploadThing("imageUploader");
 
   async function saveConfiguration() {
     try {
@@ -81,7 +105,50 @@ const DesignConfigurator = ({
 
       const actualX = renderedPosition.x - leftOffset;
       const actualY = renderedPosition.y - topOffset;
-    } catch (error) {}
+
+      const canvas = document.createElement("canvas");
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext("2d");
+
+      const userImage = new Image();
+      userImage.crossOrigin = "anonymous";
+      userImage.src = imageUrl;
+      await new Promise((resolve) => (userImage.onload = resolve));
+
+      ctx?.drawImage(
+        userImage,
+        actualX,
+        actualY,
+        renderedDimension.width,
+        renderedDimension.height
+      );
+
+      const base64 = canvas.toDataURL();
+      const base64Data = base64.split(",")[1];
+
+      const blob = base64ToBlob(base64Data, "image/png");
+      const file = new File([blob], "filename.png", { type: "image/png" });
+
+      await startUpload([file], { configId });
+    } catch (err) {
+      toast({
+        title: "Something went wrong",
+        description:
+          "There was a problem saving your config, please try again.",
+        variant: "destructive",
+      });
+    }
+  }
+
+  function base64ToBlob(base64: string, mimeType: string) {
+    const byteCharacters = atob(base64);
+    const byteNumbers = new Array(byteCharacters.length);
+    for (let i = 0; i < byteCharacters.length; i++) {
+      byteNumbers[i] = byteCharacters.charCodeAt(i);
+    }
+    const byteArray = new Uint8Array(byteNumbers);
+    return new Blob([byteArray], { type: mimeType });
   }
 
   return (
@@ -100,11 +167,10 @@ const DesignConfigurator = ({
               fill
               alt="phone image"
               src="/phone-template.png"
-              className="pointer-events-none x-50 select-none"
+              className="pointer-events-none z-50 select-none"
             />
           </AspectRatio>
-          <div className="absolute z-40 inset-0 left-[-3px] top-px right-[3px] bottom-px rounded-[32px] shadow-[0_0_0_99999px_rgba(229,231,235,0.6)]" />
-
+          <div className="absolute z-40 inset-0 left-[3px] top-px right-[3px] bottom-px rounded-[32px] shadow-[0_0_0_99999px_rgba(229,231,235,0.6)]" />
           <div
             className={cn(
               "absolute inset-0 left-[3px] top-px right-[3px] bottom-px rounded-[32px]",
@@ -117,8 +183,8 @@ const DesignConfigurator = ({
           default={{
             x: 150,
             y: 205,
-            height: imageDimentions.height / 4,
-            width: imageDimentions.width / 4,
+            height: imageDimensions.height / 4,
+            width: imageDimensions.width / 4,
           }}
           onResizeStop={(_, __, ref, ___, { x, y }) => {
             setRenderedDimension({
@@ -143,7 +209,7 @@ const DesignConfigurator = ({
         >
           <div className="relative w-full h-full">
             <NextImage
-              src={imgUrl}
+              src={imageUrl}
               fill
               alt="your image"
               className="pointer-events-none"
@@ -171,7 +237,10 @@ const DesignConfigurator = ({
                 <RadioGroup
                   value={options.color}
                   onChange={(val) => {
-                    setOptions((prev) => ({ ...prev, color: val }));
+                    setOptions((prev) => ({
+                      ...prev,
+                      color: val,
+                    }));
                   }}
                 >
                   <Label>Color: {options.color.label}</Label>
@@ -183,7 +252,9 @@ const DesignConfigurator = ({
                         className={({ active, checked }) =>
                           cn(
                             "relative -m-0.5 flex cursor-pointer items-center justify-center rounded-full p-0.5 active:ring-0 focus:ring-0 active:outline-none focus:outline-none border-2 border-transparent",
-                            { [`border-${color.tw}`]: active || checked }
+                            {
+                              [`border-${color.tw}`]: active || checked,
+                            }
                           )
                         }
                       >
@@ -208,7 +279,7 @@ const DesignConfigurator = ({
                         className="w-full justify-between"
                       >
                         {options.model.label}
-                        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50 " />
+                        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent>
@@ -264,12 +335,14 @@ const DesignConfigurator = ({
                             className={({ active, checked }) =>
                               cn(
                                 "relative block cursor-pointer rounded-lg bg-white px-6 py-4 shadow-sm border-2 border-zinc-200 focus:outline-none ring-0 focus:ring-0 outline-none sm:flex sm:justify-between",
-                                { "border-primary": active || checked }
+                                {
+                                  "border-primary": active || checked,
+                                }
                               )
                             }
                           >
                             <span className="flex items-center">
-                              <span className="flex flex-col text-sm ">
+                              <span className="flex flex-col text-sm">
                                 <RadioGroup.Label
                                   className="font-medium text-gray-900"
                                   as="span"
@@ -280,7 +353,7 @@ const DesignConfigurator = ({
                                 {option.description ? (
                                   <RadioGroup.Description
                                     as="span"
-                                    className="text-gray-500 "
+                                    className="text-gray-500"
                                   >
                                     <span className="block sm:inline">
                                       {option.description}
@@ -319,8 +392,19 @@ const DesignConfigurator = ({
                     100
                 )}
               </p>
-
-              <Button size="sm" className="w-full">
+              <Button
+                onClick={() =>
+                  saveConfig({
+                    configId,
+                    color: options.color.value,
+                    finish: options.finish.value,
+                    material: options.material.value,
+                    model: options.model.value,
+                  })
+                }
+                size="sm"
+                className="w-full"
+              >
                 Continue <ArrowRight className="h-4 w-4 ml-1.5 inline" />
               </Button>
             </div>

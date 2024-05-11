@@ -4,7 +4,7 @@ import { Progress } from "@/components/ui/progress";
 import { useToast } from "@/components/ui/use-toast";
 import { useUploadThing } from "@/lib/uploadthing";
 import { cn } from "@/lib/utils";
-import { Image, Loader2Icon, MousePointerSquareDashed } from "lucide-react";
+import { Image, Loader2, MousePointerSquareDashed } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import Dropzone, { FileRejection } from "react-dropzone";
@@ -33,11 +33,12 @@ const Page = () => {
     setIsDragOver(false);
 
     toast({
-      title: `${file.file.type} is not supported.`,
-      description: "Please choose a PNG, JPG, or JPEG image instead",
+      title: `${file.file.type} type is not supported.`,
+      description: "Please choose a PNG, JPG, or JPEG image instead.",
       variant: "destructive",
     });
   };
+
   const onDropAccepted = (acceptedFiles: File[]) => {
     startUpload(acceptedFiles, { configId: undefined });
 
@@ -49,11 +50,13 @@ const Page = () => {
   return (
     <div
       className={cn(
-        "relative h-full flex-1 my-16 w-full rounded-xl bg-gray-900/5 p-2 ring-1 ring-inset rng-gray-900/10  lg:rounded-2xl flex justify-center flex-col items-center",
-        { "ring-blue-900/25 bg-blue-900/10": isDragOver }
+        "relative h-full flex-1 my-16 w-full rounded-xl bg-gray-900/5 p-2 ring-1 ring-inset ring-gray-900/10 lg:rounded-2xl flex justify-center flex-col items-center",
+        {
+          "ring-blue-900/25 bg-blue-900/10": isDragOver,
+        }
       )}
     >
-      <div className="relative flex flex-1 flex-col  items-center justify-center w-full">
+      <div className="relative flex flex-1 flex-col items-center justify-center w-full">
         <Dropzone
           onDropRejected={onDropRejected}
           onDropAccepted={onDropAccepted}
@@ -74,7 +77,7 @@ const Page = () => {
               {isDragOver ? (
                 <MousePointerSquareDashed className="h-6 w-6 text-zinc-500 mb-2" />
               ) : isUploading || isPending ? (
-                <Loader2Icon className="animate-spin h-6 w-6 text-zinc-500 mb-2" />
+                <Loader2 className="animate-spin h-6 w-6 text-zinc-500 mb-2" />
               ) : (
                 <Image className="h-6 w-6 text-zinc-500 mb-2" />
               )}
@@ -89,7 +92,7 @@ const Page = () => {
                   </div>
                 ) : isPending ? (
                   <div className="flex flex-col items-center">
-                    <p>Redirecting, please wait</p>
+                    <p>Redirecting, please wait...</p>
                   </div>
                 ) : isDragOver ? (
                   <p>
